@@ -3,7 +3,12 @@ import mmap
 import os
 import re
 from dataclasses import dataclass
-from concurrent.futures import as_completed, Future, ThreadPoolExecutor
+from concurrent.futures import (
+    as_completed,
+    Future,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+)
 
 from rich.console import Console
 from rich.text import Text
@@ -108,8 +113,21 @@ def process_file(
     return total_count
 
 
-# TODO:
-# Search in multiple log files (multiprocessing)
+def process_files(
+    files: list[str], query: str | None, regex: str | None, output: str | None
+):
+    futures: list[Future] = []
+    with ProcessPoolExecutor() as executor:
+        for index, file in enumerate(files):
+            if output is not None:
+                output = f"{index}_{output}"
+            future = executor.submit(process_file, file.strip(), query, regex, output)
+            futures.append(future)
+
+    for future in futures:
+        future.result()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="path of log file", type=str)
@@ -117,4 +135,9 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--regex", help="search query as regex", type=str)
     parser.add_argument("-o", "--output", help="output file", type=str)
     args = parser.parse_args()
-    process_file(args.file, args.query, args.regex, args.output)
+
+    files = args.file.split(",")
+    if len(files) == 1:
+        process_file(args.file, args.query, args.regex, args.output)
+    else:
+        process_files(files, args.query, args.regex, args.output)

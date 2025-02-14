@@ -24,6 +24,6 @@ def execution_time(func: Callable) -> Callable:
         start = perf_counter()
         count = func(*args, **kwargs)
         end = perf_counter()
-        print(f"read {count} lines in {end - start:.4f}s")
+        print(f"{args[0]}: read {count} lines in {end - start:.4f}s")
 
     return wrapper
