@@ -19,8 +19,8 @@ class Chunk:
     file: str
     start: int
     end: int
-    query: str | None = None
-    regex: str | None = None
+    query: str | None
+    regex: str | None
 
 
 def format_line(line: str, start: int, end: int) -> None:
@@ -67,10 +67,7 @@ def process_chunk(chunk: Chunk, output: bool) -> tuple[list[str], int]:
 
 @execution_time
 def process_file(
-    filepath: str,
-    query: str | None = None,
-    regex: str | None = None,
-    output: str | None = None,
+    filepath: str, query: str | None, regex: str | None, output: str | None
 ) -> int:
     cpu_count = os.cpu_count()
     file_size = os.path.getsize(filepath)
