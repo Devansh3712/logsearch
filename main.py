@@ -21,12 +21,10 @@ class Chunk:
     end: int
     query: str | None = None
     regex: str | None = None
-    output: bool = False
 
 
 def format_line(line: str, start: int, end: int) -> None:
-    text = Text.assemble(
-        line[:start], (line[start:end], "bold red"), line[end:])
+    text = Text.assemble(line[:start], (line[start:end], "bold red"), line[end:])
     console.print(text)
 
 
@@ -46,8 +44,9 @@ def process_line(line: str, query: str | None, regex: str | None, output: bool) 
     return found
 
 
-def process_chunk(chunk: Chunk) -> list[str]:
+def process_chunk(chunk: Chunk, output: bool) -> tuple[list[str], int]:
     lines: list[str] = []
+    count = 0
     with open(chunk.file, "r") as infile:
         with mmap.mmap(
             infile.fileno(),
@@ -59,13 +58,11 @@ def process_chunk(chunk: Chunk) -> list[str]:
                 chunk.start += len(line)
                 if chunk.start > chunk.end:
                     break
+                count += 1
                 line = line.decode()
-                if (
-                    process_line(line, chunk.query, chunk.regex, chunk.output)
-                    and chunk.output
-                ):
+                if process_line(line, chunk.query, chunk.regex, output) and output:
                     lines.append(line)
-    return lines
+    return lines, count
 
 
 @execution_time
@@ -74,7 +71,7 @@ def process_file(
     query: str | None = None,
     regex: str | None = None,
     output: str | None = None,
-):
+) -> int:
     cpu_count = os.cpu_count()
     file_size = os.path.getsize(filepath)
     chunk_size = file_size // cpu_count
@@ -92,29 +89,26 @@ def process_file(
                 if chunk_start == chunk_end:
                     chunk_end = get_next_line_position(map, chunk_end)
 
-                chunks.append(
-                    Chunk(
-                        filepath,
-                        chunk_start,
-                        chunk_end,
-                        query,
-                        regex,
-                        output is not None,
-                    )
-                )
+                chunks.append(Chunk(filepath, chunk_start, chunk_end, query, regex))
                 chunk_start = chunk_end
 
     futures: list[Future] = []
     with ThreadPoolExecutor() as executor:
+        has_output = output is not None
         for chunk in chunks:
-            future = executor.submit(process_chunk, chunk)
+            future = executor.submit(process_chunk, chunk, has_output)
             futures.append(future)
 
+    result: list[str] = []
+    total_count = 0
     for future in as_completed(futures):
-        lines = future.result()
+        lines, count = future.result()
+        total_count += count
         if lines:
-            with open(output, "a") as outfile:
-                outfile.writelines(lines)
+            result.extend(lines)
+    with open(output, "w") as outfile:
+        outfile.writelines(result)
+    return total_count
 
 
 # TODO:
@@ -123,8 +117,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="path of log file", type=str)
     parser.add_argument("-q", "--query", help="search query", type=str)
-    parser.add_argument(
-        "-r", "--regex", help="search query as regex", type=str)
+    parser.add_argument("-r", "--regex", help="search query as regex", type=str)
     parser.add_argument("-o", "--output", help="output file", type=str)
     args = parser.parse_args()
     process_file(args.file, args.query, args.regex, args.output)
