@@ -22,8 +22,10 @@ def execution_time(func: Callable) -> Callable:
     @wraps(func)
     def wrapper(*args, **kwargs):
         start = perf_counter()
-        count = func(*args, **kwargs)
+        matches, lines = func(*args, **kwargs)
         end = perf_counter()
-        print(f"{args[0]}: read {count} lines in {end - start:.4f}s")
+        print(
+            f"{args[0]}: read {lines} lines and found {matches} matches in {end - start:.4f}s"
+        )
 
     return wrapper

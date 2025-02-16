@@ -56,7 +56,7 @@ def process_chunk(chunk: Chunk, output: bool) -> tuple[list[str], int]:
         with mmap.mmap(
             infile.fileno(),
             length=0,
-            access=mmap.ACCESS_READ,
+            access=mmap.ACCESS_COPY,
         ) as map:
             map.seek(chunk.start)
             while line := map.readline():
@@ -73,14 +73,14 @@ def process_chunk(chunk: Chunk, output: bool) -> tuple[list[str], int]:
 @execution_time
 def process_file(
     filepath: str, query: str | None, regex: str | None, output: str | None
-) -> int:
+) -> tuple[int, int]:
     cpu_count = os.cpu_count()
     file_size = os.path.getsize(filepath)
     chunk_size = file_size // cpu_count
     chunks: list[Chunk] = []
 
     with open(filepath, "r") as infile:
-        with mmap.mmap(infile.fileno(), length=0, access=mmap.ACCESS_READ) as map:
+        with mmap.mmap(infile.fileno(), length=0, access=mmap.ACCESS_COPY) as map:
             chunk_start = 0
             while chunk_start < file_size:
                 chunk_end = min(file_size, chunk_start + chunk_size)
@@ -108,14 +108,15 @@ def process_file(
         total_count += count
         if lines:
             result.extend(lines)
-    with open(output, "w") as outfile:
-        outfile.writelines(result)
-    return total_count
+    if output:
+        with open(output, "w") as outfile:
+            outfile.writelines(result)
+    return len(result), total_count
 
 
 def process_files(
     files: list[str], query: str | None, regex: str | None, output: str | None
-):
+) -> None:
     futures: list[Future] = []
     with ProcessPoolExecutor() as executor:
         for index, file in enumerate(files):
@@ -128,12 +129,15 @@ def process_files(
         future.result()
 
 
+# TODO:
+# Add optional argument for supressing output
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="path of log file", type=str)
     parser.add_argument("-q", "--query", help="search query", type=str)
     parser.add_argument("-r", "--regex", help="search query as regex", type=str)
     parser.add_argument("-o", "--output", help="output file", type=str)
+    parser.add_argument("-s", "--silent", help="supress console output", type=bool)
     args = parser.parse_args()
 
     files = args.file.split(",")
