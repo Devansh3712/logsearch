@@ -33,7 +33,7 @@ def format_line(line: str, start: int, end: int) -> None:
     console.print(text)
 
 
-def process_line(line: str, query: str | None, regex: str | None, output: bool) -> bool:
+def process_line(line: str, query: str | None, regex: str | None, silent: bool) -> bool:
     found = False
     start, end = 0, 0
     if query and (query in line):
@@ -44,12 +44,15 @@ def process_line(line: str, query: str | None, regex: str | None, output: bool) 
         found = True
         start = match.start()
         end = match.end()
-    if found and not output:
+    if found and not silent:
         format_line(line, start, end)
     return found
 
 
-def process_chunk(chunk: Chunk, output: bool) -> tuple[list[str], int]:
+# TODO:
+# If output file is not provided, return count of matches instead
+# of list of matches
+def process_chunk(chunk: Chunk, silent: bool) -> tuple[list[str], int]:
     lines: list[str] = []
     count = 0
     with open(chunk.file, "r") as infile:
@@ -65,14 +68,18 @@ def process_chunk(chunk: Chunk, output: bool) -> tuple[list[str], int]:
                     break
                 count += 1
                 line = line.decode()
-                if process_line(line, chunk.query, chunk.regex, output) and output:
+                if process_line(line, chunk.query, chunk.regex, silent):
                     lines.append(line)
     return lines, count
 
 
 @execution_time
 def process_file(
-    filepath: str, query: str | None, regex: str | None, output: str | None
+    filepath: str,
+    query: str | None,
+    regex: str | None,
+    output: str | None,
+    silent: bool,
 ) -> tuple[int, int]:
     cpu_count = os.cpu_count()
     file_size = os.path.getsize(filepath)
@@ -96,9 +103,8 @@ def process_file(
 
     futures: list[Future] = []
     with ThreadPoolExecutor() as executor:
-        has_output = output is not None
         for chunk in chunks:
-            future = executor.submit(process_chunk, chunk, has_output)
+            future = executor.submit(process_chunk, chunk, silent)
             futures.append(future)
 
     result: list[str] = []
@@ -115,14 +121,20 @@ def process_file(
 
 
 def process_files(
-    files: list[str], query: str | None, regex: str | None, output: str | None
+    files: list[str],
+    query: str | None,
+    regex: str | None,
+    output: str | None,
+    silent: bool,
 ) -> None:
     futures: list[Future] = []
     with ProcessPoolExecutor() as executor:
         for index, file in enumerate(files):
             if output is not None:
                 output = f"{index}_{output}"
-            future = executor.submit(process_file, file.strip(), query, regex, output)
+            future = executor.submit(
+                process_file, file.strip(), query, regex, output, silent
+            )
             futures.append(future)
 
     for future in futures:
@@ -130,18 +142,23 @@ def process_files(
 
 
 # TODO:
-# Add optional argument for supressing output
+# Add exception handling
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="path of log file", type=str)
     parser.add_argument("-q", "--query", help="search query", type=str)
     parser.add_argument("-r", "--regex", help="search query as regex", type=str)
     parser.add_argument("-o", "--output", help="output file", type=str)
-    parser.add_argument("-s", "--silent", help="supress console output", type=bool)
+    parser.add_argument(
+        "-s",
+        "--silent",
+        help="supress console output",
+        action=argparse.BooleanOptionalAction,
+    )
     args = parser.parse_args()
 
     files = args.file.split(",")
     if len(files) == 1:
-        process_file(args.file, args.query, args.regex, args.output)
+        process_file(args.file, args.query, args.regex, args.output, args.silent)
     else:
-        process_files(files, args.query, args.regex, args.output)
+        process_files(files, args.query, args.regex, args.output, args.silent)
