@@ -18,14 +18,16 @@ from utils import execution_time, get_next_line_position, is_start_of_line
 
 console = Console()
 
+OptionalStr = str | None
+
 
 @dataclass
 class Chunk:
     file: str
     start: int
     end: int
-    query: str | None
-    regex: str | None
+    query: OptionalStr
+    regex: OptionalStr
 
 
 def format_line(line: str, start: int, end: int) -> None:
@@ -33,7 +35,9 @@ def format_line(line: str, start: int, end: int) -> None:
     console.print(text)
 
 
-def process_line(line: str, query: str | None, regex: str | None, silent: bool) -> bool:
+def process_line(
+    line: str, query: OptionalStr, regex: OptionalStr, silent: bool
+) -> bool:
     found = False
     start, end = 0, 0
     if query and (query in line):
@@ -76,9 +80,9 @@ def process_chunk(chunk: Chunk, silent: bool) -> tuple[list[str], int]:
 @execution_time
 def process_file(
     filepath: str,
-    query: str | None,
-    regex: str | None,
-    output: str | None,
+    query: OptionalStr,
+    regex: OptionalStr,
+    output: OptionalStr,
     silent: bool,
 ) -> tuple[int, int]:
     cpu_count = os.cpu_count()
@@ -122,9 +126,9 @@ def process_file(
 
 def process_files(
     files: list[str],
-    query: str | None,
-    regex: str | None,
-    output: str | None,
+    query: OptionalStr,
+    regex: OptionalStr,
+    output: OptionalStr,
     silent: bool,
 ) -> None:
     futures: list[Future] = []
